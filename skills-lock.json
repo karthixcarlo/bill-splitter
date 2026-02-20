@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "skills": {
+    "dbt-transformation-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "804791e0caeca42ae3f1077d71e8c4fcbba24227efe51e018fa86217c18f1838"
+    },
+    "devops-engineer": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "computedHash": "45c07db7656b96c982244ba43569e9274e6231daaf0862c35ecca5409623a52a"
+    },
+    "senior-backend": {
+      "source": "alirezarezvani/claude-skills",
+      "sourceType": "github",
+      "computedHash": "412e17424ef6b692554f555763ff31ac80ee6ed54fcea96d7f9ecfcf7ab36dd9"
+    },
+    "shadcn-ui": {
+      "source": "giuseppe-trisciuoglio/developer-kit",
+      "sourceType": "github",
+      "computedHash": "b418209ba816e012ac72e71a8256350a9676d1b31102112e4b174c91026033f8"
+    },
+    "tanstack-start-best-practices": {
+      "source": "deckardger/tanstack-agent-skills",
+      "sourceType": "github",
+      "computedHash": "c27c53eebac3b0d0913af4760a55f19a29d71a7e6980db6adeb62e8b9a0d0c55"
+    }
+  }
+}
