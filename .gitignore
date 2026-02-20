@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment secrets — NEVER commit these
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*.py
+*_test.py
+quick_test.py
+debug_*.py
+simple_test.py
+final_test.py
+minimal_api.py
+create_bucket.py
+list_models.py
+TEST_RESULTS.md
+test_output.txt
+test_results.txt
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vercel
+.vercel
