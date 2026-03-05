@@ -5,3 +5,7 @@ python-dotenv
 google-generativeai
 httpx
 pydantic
+
+# Testing
+pytest
+pytest-asyncio
