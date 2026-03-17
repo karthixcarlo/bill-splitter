@@ -1,26 +1,51 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends
 import io
 import re
+import logging
 
+from auth import get_current_user
+
+logger = logging.getLogger("bpp.scan")
 router = APIRouter()
+
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+ALLOWED_IMAGE_MAGIC = {
+    b'\xFF\xD8\xFF': 'image/jpeg',
+    b'\x89PNG': 'image/png',
+    b'GIF8': 'image/gif',
+    b'RIFF': 'image/webp',
+}
+
+
+def validate_image(data: bytes) -> str:
+    for magic, mime in ALLOWED_IMAGE_MAGIC.items():
+        if data[:len(magic)] == magic:
+            return mime
+    raise HTTPException(status_code=400, detail="Invalid image format. Upload JPEG, PNG, GIF, or WebP.")
+
 
 @router.post("/scan-qr")
 async def scan_qr_code(
     request: Request,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
 ):
     """
     Scan a QR code image and extract UPI VPA using Gemini Vision.
     """
     try:
         gemini = request.app.state.gemini
-        
+
         # Read uploaded image
         image_bytes = await file.read()
-        
-        # Pass raw bytes to Gemini
+        if len(image_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        if len(image_bytes) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 10 MB.")
+
+        detected_mime = validate_image(image_bytes)
         gemini_image = {
-            'mime_type': file.content_type or 'image/jpeg',
+            'mime_type': detected_mime,
             'data': image_bytes
         }
         
@@ -68,7 +93,8 @@ Do not include any other text or explanation.
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"[scan-qr] Error: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing QR code: {str(e)}"
+            detail="Error processing QR code. Please try again."
         )

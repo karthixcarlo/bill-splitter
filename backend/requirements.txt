@@ -2,6 +2,6 @@ fastapi
 uvicorn[standard]
 python-multipart
 python-dotenv
-google-generativeai
 httpx
 pydantic
+slowapi

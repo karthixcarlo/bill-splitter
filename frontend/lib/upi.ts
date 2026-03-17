@@ -6,25 +6,30 @@
  * @param note - Optional payment note
  * @returns UPI deep link URL
  */
+const VPA_REGEX = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/;
+
+export function isValidVPA(vpa: string): boolean {
+    return VPA_REGEX.test(vpa);
+}
+
 export function generateUPIIntent(
     hostVPA: string,
     hostName: string,
     amount: number,
     note: string = "Bill Split Payment"
 ): string {
-    // Format amount to 2 decimal places
-    const formattedAmount = amount.toFixed(2);
+    // Validate VPA format to prevent URL injection (& in VPA breaks params)
+    if (!isValidVPA(hostVPA)) {
+        throw new Error(`Invalid UPI VPA format: ${hostVPA}`);
+    }
 
-    // Encode parameters
-    const params = new URLSearchParams({
-        pa: hostVPA,
-        pn: hostName,
-        am: formattedAmount,
-        cu: 'INR',
-        tn: note
-    });
+    // Build UPI URL manually so @ in pa is never encoded as %40,
+    // and spaces in other fields use %20 (not + from URLSearchParams).
+    const pn = encodeURIComponent(hostName);
+    const tn = encodeURIComponent(note);
+    const am = amount.toFixed(2);
 
-    return `upi://pay?${params.toString()}`;
+    return `upi://pay?pa=${hostVPA}&pn=${pn}&am=${am}&cu=INR&tn=${tn}`;
 }
 
 /**

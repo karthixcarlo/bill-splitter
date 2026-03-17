@@ -1,0 +1,27 @@
+# docker-compose.yml — local development environment for the FastAPI backend
+# Usage: docker compose up --build
+#
+# The frontend (Next.js) runs directly via `npm run dev` — not containerized,
+# since Vercel handles production builds and hot-reload is faster outside Docker.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bpp-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - FRONTEND_URL=http://localhost:3000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

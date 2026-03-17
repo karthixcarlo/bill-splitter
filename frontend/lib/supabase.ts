@@ -5,6 +5,39 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Centralized backend API URL — no more hardcoded localhost scattered across files.
+// In production NEXT_PUBLIC_API_URL must be set (e.g. https://api.bropp.app).
+// Falls back to localhost only for local development.
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+// Helper to get the current session's access token for backend API calls
+export async function getAccessToken(): Promise<string | null> {
+    try {
+        // getSession reads from storage; may be stale. Try it first for speed.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) return session.access_token;
+        // Fallback: getUser() forces a server round-trip and refreshes the session
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { data: refreshed } = await supabase.auth.getSession();
+            return refreshed?.session?.access_token ?? null;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+// Helper to build Authorization headers for backend fetch calls
+export async function authHeaders(): Promise<Record<string, string>> {
+    const token = await getAccessToken();
+    if (!token) {
+        console.error('Missing Auth Token! User may not be logged in. Backend will reject this request.');
+        return {};
+    }
+    return { 'Authorization': `Bearer ${token}` };
+}
+
 // Helper to get current user — returns null safely if Supabase is unreachable
 export async function getCurrentUser() {
     try {

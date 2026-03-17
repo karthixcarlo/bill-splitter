@@ -1,60 +1,74 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase, getCurrentUser } from '@/lib/supabase';
-import { ArrowRight, Sparkles, Phone, AlertCircle } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { supabase, getUserProfile } from '@/lib/supabase';
+import { ArrowRight, Sparkles, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function LandingPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const returnTo = searchParams.get('returnTo') || '';
+    const [mode, setMode] = useState<'login' | 'signup'>('login');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [billCode, setBillCode] = useState('');
-    const [user, setUser] = useState<any>(null);
     const [authError, setAuthError] = useState('');
 
-    // Check if user is already logged in
+    // Redirect if already logged in
     useEffect(() => {
         async function checkUser() {
             try {
-                const currentUser = await getCurrentUser();
-                if (currentUser) {
-                    setUser(currentUser);
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) return;
+                const profile = await getUserProfile(session.user.id).catch(() => null);
+                if (profile?.upi_vpa) {
+                    router.push(returnTo || '/home');
+                } else {
+                    router.push(returnTo ? `/onboard?returnTo=${encodeURIComponent(returnTo)}` : '/onboard');
                 }
-            } catch (e) {
-                // silently ignore – just means not logged in
+            } catch {
+                // not logged in — stay on page
             }
         }
         checkUser();
     }, []);
 
-    async function handleGoogleLogin() {
+    async function handleAuth() {
+        if (!email || !password) { setAuthError('Please enter email and password.'); return; }
         setLoading(true);
         setAuthError('');
         try {
-            const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                    redirectTo: `${window.location.origin}/host`,
-                },
-            });
-            if (error) {
-                setAuthError('Google login failed: ' + error.message);
-                setLoading(false);
+            if (mode === 'signup') {
+                const { data, error } = await supabase.auth.signUp({ email, password });
+                if (error) { setAuthError(error.message); return; }
+                // signUp may return a session immediately (if email confirm is off)
+                if (data.session) {
+                    await redirectAfterAuth(data.session.user.id);
+                } else {
+                    setAuthError('Check your email for a confirmation link.');
+                }
+            } else {
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) { setAuthError(error.message); return; }
+                await redirectAfterAuth(data.user.id);
             }
-            // If successful, browser redirects – no need to setLoading(false)
         } catch (e: any) {
-            setAuthError('Google login failed: ' + (e?.message || 'Unknown error'));
+            setAuthError(e?.message || 'Something went wrong.');
+        } finally {
             setLoading(false);
         }
     }
 
-    async function handlePhoneLogin() {
-        setAuthError('Phone Auth requires Supabase SMS configuration in the dashboard.');
-    }
-
-    // Dev bypass – no auth call, just navigate directly
-    function handleDevBypass() {
-        router.push('/host');
+    async function redirectAfterAuth(userId: string) {
+        const profile = await getUserProfile(userId).catch(() => null);
+        if (profile?.upi_vpa) {
+            router.push(returnTo || '/home');
+        } else {
+            router.push(returnTo ? `/onboard?returnTo=${encodeURIComponent(returnTo)}` : '/onboard');
+        }
     }
 
     function handleJoinBill() {
@@ -68,11 +82,11 @@ export default function LandingPage() {
             <div className="absolute inset-0 bg-grid-pattern opacity-[0.4] pointer-events-none" />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-zinc-950/50 to-zinc-950 pointer-events-none" />
 
-            <main className="relative z-10 w-full max-w-md space-y-12">
+            <main className="relative z-10 w-full max-w-md space-y-10">
 
-                {/* Hero Section */}
+                {/* Hero */}
                 <div className="text-center space-y-4">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-medium text-emerald-500 mb-2 animate-fade-in">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-medium text-emerald-500 mb-2">
                         <Sparkles className="w-3 h-3" />
                         <span>AI-Powered Splitting</span>
                     </div>
@@ -85,62 +99,73 @@ export default function LandingPage() {
                     </p>
                 </div>
 
-                {/* Auth Error Banner */}
-                {authError && (
-                    <div className="flex items-start gap-3 p-4 bg-red-950/50 border border-red-800/60 rounded-xl text-red-400 text-sm">
-                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                        <span>{authError}</span>
-                    </div>
-                )}
-
-                {/* Auth Component (Host) */}
-                {!user ? (
-                    <div className="space-y-4">
-                        <div className="space-y-3">
-                            <button
-                                onClick={handleGoogleLogin}
-                                disabled={loading}
-                                className="w-full group relative flex items-center justify-center gap-3 px-6 py-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-emerald-500/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.1)] transition-all duration-300 disabled:opacity-60"
-                            >
-                                <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center">
-                                    <span className="text-black font-bold text-xs">G</span>
-                                </div>
-                                <span className="font-semibold text-zinc-100">
-                                    {loading ? 'Redirecting...' : 'Continue with Google'}
-                                </span>
-                            </button>
-
-                            <button
-                                onClick={handlePhoneLogin}
-                                className="w-full group relative flex items-center justify-center gap-3 px-6 py-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-emerald-500/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.1)] transition-all duration-300"
-                            >
-                                <Phone className="w-5 h-5 text-zinc-400 group-hover:text-emerald-500 transition-colors" />
-                                <span className="font-semibold text-zinc-100">Continue with Phone</span>
-                            </button>
-
-                            {/* Dev Bypass – no network call */}
-                            <button
-                                onClick={handleDevBypass}
-                                className="w-full text-xs text-zinc-600 hover:text-emerald-500 transition-colors pt-2"
-                            >
-                                (Dev: Skip Login / Go to Host)
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-center space-y-4">
-                        <div className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl">
-                            <p className="text-zinc-400 text-sm mb-1">Welcome back,</p>
-                            <p className="text-white font-semibold truncate">{user.email || 'Friend'}</p>
-                        </div>
+                {/* Auth Form */}
+                <div className="space-y-4">
+                    {/* Mode Toggle */}
+                    <div className="flex gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
                         <button
-                            onClick={() => router.push('/host')}
-                            className="w-full py-4 gradient-emerald rounded-xl font-bold text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:scale-[1.02] transition-transform"
+                            onClick={() => { setMode('login'); setAuthError(''); }}
+                            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                                mode === 'login' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                            }`}
                         >
-                            Start Hosting
+                            Log In
+                        </button>
+                        <button
+                            onClick={() => { setMode('signup'); setAuthError(''); }}
+                            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                                mode === 'signup' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                            }`}
+                        >
+                            Sign Up
                         </button>
                     </div>
-                )}
+
+                    {/* Error */}
+                    {authError && (
+                        <div className="flex items-start gap-3 p-4 bg-red-950/50 border border-red-800/60 rounded-xl text-red-400 text-sm">
+                            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                            <span>{authError}</span>
+                        </div>
+                    )}
+
+                    {/* Fields */}
+                    <div className="space-y-3">
+                        <input
+                            type="email"
+                            placeholder="Email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
+                                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4 pr-12 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(v => !v)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                            >
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={handleAuth}
+                            disabled={loading}
+                            className="w-full py-4 gradient-emerald rounded-xl font-bold text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:scale-[1.02] transition-transform disabled:opacity-60 disabled:scale-100"
+                        >
+                            {loading ? 'Please wait...' : mode === 'login' ? 'Log In' : 'Create Account'}
+                        </button>
+                    </div>
+                </div>
 
                 {/* Guest Access */}
                 <div className="space-y-6">

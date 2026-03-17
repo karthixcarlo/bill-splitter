@@ -1,18 +1,29 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { getCurrentUser, updateUserProfile } from '@/lib/supabase';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { supabase, getCurrentUser, updateUserProfile, authHeaders, API_URL } from '@/lib/supabase';
 import { Upload, CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function OnboardPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const returnTo = searchParams.get('returnTo') || '';
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string>('');
     const [loading, setLoading] = useState(false);
     const [extractedVPA, setExtractedVPA] = useState<string>('');
     const [username, setUsername] = useState('');
+    const [vibe, setVibe] = useState('');
     const [success, setSuccess] = useState(false);
+
+    useEffect(() => {
+        async function checkSession() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) router.push('/');
+        }
+        checkSession();
+    }, []);
 
     async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
@@ -34,9 +45,11 @@ export default function OnboardPage() {
             const formData = new FormData();
             formData.append('file', selectedFile);
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/scan-qr`, {
+            const headers = await authHeaders();
+            const response = await fetch(`${API_URL}/api/scan-qr`, {
                 method: 'POST',
                 body: formData,
+                headers,
             });
 
             const data = await response.json();
@@ -71,11 +84,12 @@ export default function OnboardPage() {
             await updateUserProfile(user.id, {
                 username,
                 upi_vpa: extractedVPA,
+                ...(vibe.trim() ? { vibe: vibe.trim() } : {}),
             });
 
             setSuccess(true);
             setTimeout(() => {
-                router.push('/');
+                router.push(returnTo || '/home');
             }, 2000);
         } catch (error) {
             console.error('Error saving profile:', error);
@@ -117,6 +131,23 @@ export default function OnboardPage() {
                             placeholder="Enter your name"
                             className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-2">Your Vibe <span className="text-zinc-600 font-normal">(optional)</span></label>
+                        <select
+                            value={vibe}
+                            onChange={(e) => setVibe(e.target.value)}
+                            className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-zinc-200 appearance-none"
+                        >
+                            <option value="">Pick your vibe...</option>
+                            <option value="Will pay you back in 3-5 business days">Will pay you back in 3-5 business days</option>
+                            <option value="Professional freeloader">Professional freeloader</option>
+                            <option value="Math ain't mathing">Math ain't mathing</option>
+                            <option value="Here for the vibes, not the bill">Here for the vibes, not the bill</option>
+                            <option value="I only had a Diet Coke">I only had a Diet Coke</option>
+                            <option value="Designated UPI scanner">Designated UPI scanner</option>
+                        </select>
                     </div>
 
                     <div className="glass p-6 rounded-xl space-y-4">
