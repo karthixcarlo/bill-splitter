@@ -1,11 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase, getUserProfile } from '@/lib/supabase';
-import { ArrowRight, Sparkles, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, Sparkles, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LandingPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-zinc-950"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>}>
+            <LandingContent />
+        </Suspense>
+    );
+}
+
+function LandingContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const returnTo = searchParams.get('returnTo') || '';
