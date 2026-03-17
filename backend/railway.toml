@@ -1,4 +1,6 @@
 # Railway configuration — deploy FastAPI backend
+# Root directory MUST be set to "backend" in Railway dashboard
+
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
@@ -9,6 +11,3 @@ healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
-
-[[services]]
-name = "bro-please-pay-api"
