@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     title: "Bro please pay - Smart Bill Splitter",
     description: "AI-powered bill splitting with instant UPI payments",
     manifest: "/manifest.json",
+    icons: {
+        icon: "/favicon.svg",
+    },
     openGraph: {
         type: "website",
         siteName: "Bro Please Pay",
