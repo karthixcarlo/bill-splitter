@@ -46,3 +46,12 @@ npm-debug.log*
 
 # Vercel
 .vercel
+
+# AI agent skill files
+.agent/
+.agents/
+skills-lock.json
+
+# Build cache
+tsconfig.tsbuildinfo
+frontend/tsconfig.tsbuildinfo

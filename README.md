@@ -1,202 +1,148 @@
-# Bro please pay 🧾✨
+# Bro Please Pay
 
-An AI-powered bill splitting application where hosts upload restaurant bills, AI parses them into line items, and friends join real-time sessions to claim their items with instant UPI payment generation.
+AI-powered bill splitting for friend groups in India. Snap a restaurant bill, let Gemini parse it, claim what you ate, and pay the host instantly via UPI.
 
-## 🎯 Features
+**Live:** [bill-splitter-4cmi.vercel.app](https://bill-splitter-4cmi.vercel.app)
 
-- **AI Bill Parsing**: Upload a photo of any restaurant bill, and Gemini 1.5 Flash extracts items, quantities, and prices
-- **Smart QR Onboarding**: Scan your GPay/PhonePe QR code once, never type your UPI ID again
-- **Real-Time Claiming**: Tap items to claim them, see friends' avatars appear live
-- **Proportional Tax Split**: Tax and service charges are automatically distributed fairly
-- **Instant UPI Payment**: One tap to pay the host directly via UPI deep links
+## Features
 
-## 🛠️ Tech Stack
+### Core
+- **AI Bill Parsing** — Upload a bill photo, Gemini 2.5 Flash extracts every line item
+- **Real-Time Claiming** — Tap items to claim them, see friends' avatars appear live via WebSockets
+- **Pizza Slider** — Shared items get a fractional claim slider (10–100%)
+- **Proportional Tax Split** — Tax and service charges distributed by what you ordered
+- **Instant UPI Payment** — One-tap deep link to GPay/PhonePe/Paytm, QR code on desktop
+- **Smart QR Onboarding** — Scan your UPI QR once, never type your VPA again
 
-### Frontend
-- **Next.js 14** (App Router)
-- **Tailwind CSS** (Dark mode themed)
-- **Supabase** (Auth + Realtime + Storage)
-- **TypeScript**
+### Social
+- **Friends & Chat** — Add friends, real-time DM with text and voice messages
+- **Squads** — Create groups, track inter-squad debts with a running ledger
+- **Analytics** — Monthly spend charts, top restaurants, most frequent co-diners
 
-### Backend
-- **FastAPI** (Python)
-- **Google Gemini 1.5 Flash** (Vision AI for bill parsing)
-- **Supabase** (PostgreSQL Database)
-- **OpenCV + pyzbar** (QR code detection)
+### Gamification
+- **Aura System** — Earn or lose aura points based on payment behavior (fast pay = +aura, dodge = -aura)
+- **AI Roast** — Gemini generates a Gen Z roast of the group's order
+- **Beg for Mercy** — Micro-debts under ₹50 can be forgiven via text or voice apology
+- **The Snitch Protocol** — After 5+ days unpaid, escalate to the dodger's emergency contact
 
-## 📁 Project Structure
+### Host Controls
+- **Payment Audit** — Verify payments: unpaid → pending → cleared
+- **Anti-Dodge** — Participants must request to leave; host approves or denies
+- **Nudge** — Ping unpaid friends directly
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| Backend | FastAPI, Python 3.12, httpx (no SDKs) |
+| AI | Google Gemini 2.5 Flash (Vision + Text) |
+| Database | Supabase (PostgreSQL + Auth + Realtime + Storage) |
+| Payments | UPI deep links (manual URL construction) |
+| Infra | Railway (backend), Vercel (frontend), Docker |
+
+## Project Structure
 
 ```
-BIll/
 ├── backend/
-│   ├── main.py                 # FastAPI app entry point
-│   ├── requirements.txt        # Python dependencies
-│   ├── .env.example           # Environment variables template
+│   ├── main.py              # FastAPI app, Gemini client, Supabase client
+│   ├── auth.py              # JWT verification (Supabase tokens)
+│   ├── rate_limit.py        # slowapi rate limiting
+│   ├── Dockerfile           # Multi-stage production build
+│   ├── railway.toml         # Railway deployment config
 │   └── routers/
-│       ├── scan.py            # QR code scanning endpoint
-│       └── bills.py           # Bill parsing endpoint
+│       ├── bills.py         # Bill CRUD + AI parsing
+│       ├── scan.py          # QR code → UPI VPA extraction
+│       ├── aura.py          # Aura score tracking
+│       └── squads.py        # Squad management + ledger
 ├── frontend/
 │   ├── app/
-│   │   ├── layout.tsx         # Root layout
-│   │   ├── page.tsx           # Landing page
-│   │   ├── onboard/           # QR code onboarding
-│   │   ├── host/              # Bill upload & parsing
-│   │   ├── join/              # Join bill by ID
-│   │   └── bill/[id]/         # Real-time splitting interface
+│   │   ├── page.tsx         # Login with ?returnTo= support
+│   │   ├── onboard/         # QR-based UPI onboarding
+│   │   ├── home/            # Dashboard, bill grid, profile
+│   │   ├── host/            # Upload → AI parse → create room
+│   │   ├── bill/[id]/       # Server Component (OG meta) + BillRoom client
+│   │   ├── friends/         # Friend list, requests, inline chat
+│   │   ├── chat/[friendId]/ # Full-page DM (mobile)
+│   │   ├── analytics/       # Spending insights + charts
+│   │   ├── squads/          # Squad list + detail pages
+│   │   └── components/      # NavBar, MainContent, ChatPanel
 │   ├── lib/
-│   │   ├── supabase.ts        # Supabase client
-│   │   ├── calculations.ts    # Bill splitting logic
-│   │   └── upi.ts             # UPI payment generation
-│   ├── package.json
-│   └── .env.local.example
-└── supabase/
-    └── schema.sql             # Database schema with RLS policies
+│   │   ├── supabase.ts      # Client + auth headers + API_URL
+│   │   ├── calculations.ts  # Tax split math
+│   │   └── upi.ts           # UPI deep link builder
+│   └── middleware.ts         # Session refresh on every request
+├── supabase/
+│   ├── schema.sql           # Base schema with RLS
+│   └── migrations/          # Incremental migrations (002–016)
+├── k8s/                     # Kubernetes manifests (Deployment, Service, HPA)
+├── .github/workflows/
+│   └── deploy.yml           # CI: lint, build, Docker validation
+└── docker-compose.yml       # Local dev
 ```
 
-## 🚀 Setup Instructions
+## Quick Start
 
-### 1. Prerequisites
-- Node.js 18+ and npm
-- Python 3.9+
-- Supabase account ([supabase.com](https://supabase.com))
-- Google Gemini API key ([Google AI Studio](https://makersuite.google.com/app/apikey))
+### Prerequisites
+- Node.js 20+, Python 3.12+
+- [Supabase](https://supabase.com) project
+- [Gemini API key](https://aistudio.google.com/apikey)
 
-### 2. Database Setup
-
-1. Create a new Supabase project
-2. Run the schema:
-   ```bash
-   # Copy the contents of supabase/schema.sql and run in Supabase SQL Editor
-   ```
-3. Enable Realtime for all tables:
-   - Go to Database → Replication
-   - Enable replication for: `bills`, `bill_items`, `participants`, `claims`
-
-### 3. Backend Setup
+### Backend
 
 ```bash
 cd backend
-
-# Create virtual environment (optional but recommended)
 python -m venv venv
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-# source venv/bin/activate
+pip install -r requirements.txt
 
-# Install dependencies (FastAPI, Uvicorn, HTTPX)
-python -m pip install -r requirements.txt
+cp .env.example .env
+# Fill in: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+#          GEMINI_API_KEY, FRONTEND_URL
 
-# Configure environment
-copy .env.example .env
-# Edit .env with your credentials:
-# - SUPABASE_URL
-# - SUPABASE_SERVICE_ROLE_KEY
-# - GEMINI_API_KEY
-
-# Run server
-python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**Note:** The backend has been optimized to run without heavy dependencies (no Supabase SDK or Gemini SDK required). It uses direct HTTP calls for maximum compatibility.
-
-Backend will run on `http://localhost:8000`
-
-### 4. Frontend Setup
+### Frontend
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
 
-# Configure environment
-copy .env.local.example .env.local
-# Edit .env.local with:
-# - NEXT_PUBLIC_SUPABASE_URL
-# - NEXT_PUBLIC_SUPABASE_ANON_KEY
-# - NEXT_PUBLIC_API_URL=http://localhost:8000
+cp .env.example .env.local
+# Fill in: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#          NEXT_PUBLIC_API_URL=http://localhost:8000
 
-# Run development server
 npm run dev
 ```
 
-Frontend will run on `http://localhost:3000`
+### Database
 
-## 🎮 Usage
+1. Run `supabase/schema.sql` in the Supabase SQL Editor
+2. Run migrations in order: `002` through `016`
+3. Enable Realtime replication for: `bills`, `bill_items`, `participants`, `claims`, `messages`, `payments`
 
-### As a Host:
-1. Sign in → "Host a Bill"
-2. Upload bill image (photo or screenshot)
-3. AI parses items automatically
-4. Share the bill link with friends
-5. Track who claims what in real-time
-6. Receive payments via UPI
+## Deployment
 
-### As a Friend:
-1. Sign in → "Join a Bill" or click shared link
-2. See all bill items
-3. Tap items you ordered
-4. View your total (with proportional tax)
-5. Pay host directly via UPI
+- **Backend** → [Railway](https://railway.app) — auto-deploys from `main` via Dockerfile
+- **Frontend** → [Vercel](https://vercel.com) — auto-deploys from `main`, root directory set to `frontend`
+- **CI/CD** → GitHub Actions validates lint, build, and Docker on every push/PR
 
-### Setting Up UPI:
-1. Go to "Set up UPI payment"
-2. Upload screenshot of your GPay/PhonePe QR code
-3. AI extracts your UPI VPA automatically
-4. Save profile
+### Environment Variables
 
-## 🔐 Security Features
+**Railway (backend):**
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL`
 
-- Row Level Security (RLS) on all tables
-- Users can only see bills they're part of
-- Host-only permissions for bill creation
-- JWT-based authentication via Supabase
+**Vercel (frontend):**
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL`
 
-## 🧪 Testing
+## Architecture Highlights
 
-### Backend API:
-```bash. Health check
-curl http://localhost:8000/health
+- **No SDKs on backend** — Custom `SimpleGeminiClient` and `SimpleSupabaseClient` using raw httpx. Zero heavy dependencies.
+- **Dual-track claims** — localStorage (instant UX) + Supabase writes (persistence) + Realtime Broadcast (cross-browser sync)
+- **Server/Client split** — Bill page uses a Server Component for WhatsApp OG previews, renders a Client Component for interactivity
+- **UPI deep links** — Manual string concatenation instead of URLSearchParams (avoids `@` → `%40` encoding)
+- **Proportional tax** — `taxShare = (tax + serviceCharge) × (mySubtotal / billTotal)`
 
-# Test QR scanning
-curl -X POST http://localhost:8000/api/scan-qr \
-  -F "file=@qr_code.jpg"
+## License
 
-# Test bill parsing
-curl -X POST http://localhost:8000/api/parse-bill \
-  -F "file=@bill.jpg" \
-  -F "host_id=your-user-id"
-```
-
-### Frontend:
-```bash
-npm run build  # Check for TypeScript errors
-npm run lint   # Check linting
-```
-
-## 📱 Mobile Testing
-
-**UPI payments only work on mobile devices!** To test:
-1. Deploy frontend to Vercel/Netlify
-2. Open on your phone
-3. Test payment flow end-to-end
-
-## 🎨 Design Philosophy
-
-- **Dark Mode First**: Sleek zinc-950 background inspired by "Dark" series
-- **Emerald Accents**: Money-related actions use emerald-500
-- **Glass Morphism**: Subtle frosted glass effects
-- **Micro-animations**: Smooth transitions for better UX
-
-## 🤝 Contributing
-
-This is a demo project. Feel free to fork and customize!
-
-## 📄 License
-
-MIT License - feel free to use this for your own projects!
-
----
-
-**Built with ❤️ using Next.js, FastAPI, and Google Gemini AI**
+MIT
