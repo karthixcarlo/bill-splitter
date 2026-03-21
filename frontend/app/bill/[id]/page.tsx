@@ -6,7 +6,8 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    // Server component: use server-side API_URL (no NEXT_PUBLIC_ needed).
+    const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     try {
         const res = await fetch(`${apiUrl}/api/bills/${params.id}`, {
             next: { revalidate: 60 },

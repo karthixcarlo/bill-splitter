@@ -5,10 +5,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Centralized backend API URL — no more hardcoded localhost scattered across files.
-// In production NEXT_PUBLIC_API_URL must be set (e.g. https://api.bropp.app).
-// Falls back to localhost only for local development.
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+// Centralized backend API URL.
+// In production, Next.js rewrites in next.config.mjs proxy /api/* to the backend,
+// so this can be '' (relative URL). Set NEXT_PUBLIC_API_URL only if bypassing the proxy.
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 // Helper to get the current session's access token for backend API calls
 export async function getAccessToken(): Promise<string | null> {

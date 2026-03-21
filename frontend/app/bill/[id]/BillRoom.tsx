@@ -317,7 +317,7 @@ export default function BillRoom() {
             router.push('/');
         } catch (err) {
             console.error('Error loading bill:', err);
-            alert(`Could not load bill. Backend URL: ${API_URL}\n\nIf this is the production app, make sure NEXT_PUBLIC_API_URL is set in Vercel environment variables.`);
+            alert('Could not load bill. Please check your connection and try again.');
             router.push('/');
         } finally {
             setLoading(false);
