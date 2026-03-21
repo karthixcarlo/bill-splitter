@@ -305,7 +305,7 @@ export default function HostPage() {
                                 <Camera className="w-12 h-12 text-zinc-500 mb-3" />
                                 <span className="text-zinc-300 mb-1 font-medium">Click to upload bill</span>
                                 <span className="text-sm text-zinc-500">JPG, PNG up to 10MB</span>
-                                <input type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
+                                <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                             </label>
                         ) : (
                             <div className="space-y-4">
