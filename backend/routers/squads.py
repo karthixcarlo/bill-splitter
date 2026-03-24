@@ -3,12 +3,14 @@ from typing import List
 import logging
 
 from auth import get_current_user
+from rate_limit import limiter
 
 logger = logging.getLogger("bpp.squads")
 router = APIRouter()
 
 
 @router.post("/squads/create")
+@limiter.limit("5/minute")
 async def create_squad(
     request: Request,
     payload: dict = Body(...),
@@ -52,6 +54,7 @@ async def create_squad(
 
 
 @router.get("/squads/my")
+@limiter.limit("20/minute")
 async def get_my_squads(request: Request, user: dict = Depends(get_current_user)):
     """Get all squads the user belongs to, with member info."""
     supabase = request.app.state.supabase
@@ -96,6 +99,7 @@ async def get_my_squads(request: Request, user: dict = Depends(get_current_user)
 
 
 @router.get("/squads/{squad_id}")
+@limiter.limit("20/minute")
 async def get_squad(request: Request, squad_id: str, user: dict = Depends(get_current_user)):
     """Get squad details, members, and ledger summary."""
     supabase = request.app.state.supabase
@@ -162,6 +166,7 @@ async def get_squad(request: Request, squad_id: str, user: dict = Depends(get_cu
 
 
 @router.post("/squads/{squad_id}/add-members")
+@limiter.limit("10/minute")
 async def add_members(
     request: Request,
     squad_id: str,
@@ -191,6 +196,7 @@ async def add_members(
 
 
 @router.delete("/squads/{squad_id}/leave")
+@limiter.limit("5/minute")
 async def leave_squad(request: Request, squad_id: str, user: dict = Depends(get_current_user)):
     """Leave a squad."""
     supabase = request.app.state.supabase
@@ -201,6 +207,7 @@ async def leave_squad(request: Request, squad_id: str, user: dict = Depends(get_
 
 
 @router.post("/squads/{squad_id}/settle")
+@limiter.limit("5/minute")
 async def settle_debt(
     request: Request,
     squad_id: str,

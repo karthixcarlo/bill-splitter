@@ -497,11 +497,14 @@ export default function BillRoom() {
     }
 
     async function handleAuditDecision(userId: string, decision: 'cleared' | 'unpaid') {
-        const { error } = await supabase
-            .from('participants')
-            .update({ payment_status: decision })
-            .match({ bill_id: billId, user_id: userId });
-        if (!error) {
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${API_URL}/api/bills/${billId}/audit`, {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userId, decision }),
+            });
+            if (!res.ok) throw new Error('Audit failed');
             setParticipants(prev => prev.map(p =>
                 p.user_id === userId ? { ...p, payment_status: decision } : p
             ));
@@ -512,6 +515,8 @@ export default function BillRoom() {
             } else {
                 showBillToast('Payment rejected');
             }
+        } catch {
+            showBillToast('Failed to update payment status');
         }
     }
 
@@ -690,16 +695,15 @@ export default function BillRoom() {
     }
 
     async function handleMercyDecision(userId: string, decision: 'grant' | 'deny') {
-        const newStatus = decision === 'grant' ? 'cleared' : 'unpaid';
-        const { error } = await supabase
-            .from('participants')
-            .update({
-                payment_status: newStatus,
-                ...(decision === 'deny' ? { mercy_type: 'none', mercy_payload: null } : {}),
-            })
-            .match({ bill_id: billId, user_id: userId });
-
-        if (!error) {
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${API_URL}/api/bills/${billId}/mercy`, {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userId, decision }),
+            });
+            if (!res.ok) throw new Error('Mercy decision failed');
+            const newStatus = decision === 'grant' ? 'cleared' : 'unpaid';
             setParticipants(prev => prev.map(p =>
                 p.user_id === userId ? { ...p, payment_status: newStatus, ...(decision === 'deny' ? { mercy_type: 'none', mercy_payload: undefined } : {}) } : p
             ));
@@ -710,6 +714,8 @@ export default function BillRoom() {
             } else {
                 showBillToast('Mercy denied. They must pay.');
             }
+        } catch {
+            showBillToast('Failed to process mercy decision');
         }
     }
 

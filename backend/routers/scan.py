@@ -4,6 +4,7 @@ import re
 import logging
 
 from auth import get_current_user
+from rate_limit import limiter
 
 logger = logging.getLogger("bpp.scan")
 router = APIRouter()
@@ -25,6 +26,7 @@ def validate_image(data: bytes) -> str:
 
 
 @router.post("/scan-qr")
+@limiter.limit("5/minute")
 async def scan_qr_code(
     request: Request,
     file: UploadFile = File(...),

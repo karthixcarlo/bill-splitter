@@ -36,6 +36,7 @@ async def get_aura(request: Request, user_id: str):
 
 
 @router.get("/aura/leaderboard/top")
+@limiter.limit("20/minute")
 async def aura_leaderboard(request: Request):
     """Public endpoint: top 20 users by aura score."""
     supabase = request.app.state.supabase
@@ -85,10 +86,26 @@ async def record_aura_event(
         raise HTTPException(status_code=400, detail=f"Invalid event_type: {event_type}")
 
     # Positive events: only the user themselves can record
-    # Negative events: anyone can record (for nudges, etc.)
     points = POINT_MAP[event_type]
     if points > 0 and user["user_id"] != target_user_id:
         raise HTTPException(status_code=403, detail="Cannot record positive events for other users")
+
+    # Negative events: require bill context — caller and target must both be
+    # participants in the same bill to prevent arbitrary aura bombing
+    if points < 0 and user["user_id"] != target_user_id:
+        if not bill_id:
+            raise HTTPException(status_code=400, detail="bill_id required for negative events targeting other users")
+        # Verify both users are participants in this bill
+        participants_resp = supabase.table("participants").select("user_id").eq("bill_id", bill_id).execute()
+        participant_ids = {p["user_id"] for p in (participants_resp.data or [])}
+        # Also check if caller is the host
+        bill_resp = supabase.table("bills").select("host_id").eq("id", bill_id).execute()
+        if bill_resp.data:
+            participant_ids.add(bill_resp.data[0]["host_id"])
+        if user["user_id"] not in participant_ids:
+            raise HTTPException(status_code=403, detail="You are not a participant in this bill")
+        if target_user_id not in participant_ids:
+            raise HTTPException(status_code=403, detail="Target user is not a participant in this bill")
 
     row = {
         "user_id": target_user_id,

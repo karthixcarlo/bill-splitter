@@ -179,6 +179,7 @@ Generate a 2-sentence roast of their diet or spending habits using heavy Gen Z s
 
 
 @router.post("/bills/save")
+@limiter.limit("10/minute")
 async def save_bill(request: Request, payload: dict = Body(...), user: dict = Depends(get_current_user)):
     """
     Persist a confirmed bill to Supabase.
@@ -271,7 +272,79 @@ async def save_bill(request: Request, payload: dict = Body(...), user: dict = De
     return {"success": True, "bill_id": bill_id}
 
 
+@router.post("/bills/{bill_id}/audit")
+@limiter.limit("10/minute")
+async def audit_payment(
+    request: Request,
+    bill_id: str,
+    payload: dict = Body(...),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Host-only: update a participant's payment_status (cleared/unpaid).
+    Prevents participants from marking their own payment as cleared.
+    """
+    supabase = request.app.state.supabase
+    target_user_id = payload.get("user_id")
+    decision = payload.get("decision")
+
+    if not target_user_id or decision not in ("cleared", "unpaid"):
+        raise HTTPException(status_code=400, detail="user_id and decision ('cleared'|'unpaid') required")
+
+    # Verify caller is the bill host
+    bill_resp = supabase.table("bills").select("host_id").eq("id", bill_id).execute()
+    if not bill_resp.data:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    if bill_resp.data[0]["host_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Only the bill host can audit payments")
+
+    supabase.table("participants").update(
+        {"payment_status": decision}
+    ).eq("bill_id", bill_id).eq("user_id", target_user_id).execute()
+
+    return {"success": True, "user_id": target_user_id, "payment_status": decision}
+
+
+@router.post("/bills/{bill_id}/mercy")
+@limiter.limit("10/minute")
+async def mercy_decision(
+    request: Request,
+    bill_id: str,
+    payload: dict = Body(...),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Host-only: grant or deny a mercy request.
+    Grant sets payment_status to 'cleared'; deny resets to 'unpaid'.
+    """
+    supabase = request.app.state.supabase
+    target_user_id = payload.get("user_id")
+    decision = payload.get("decision")
+
+    if not target_user_id or decision not in ("grant", "deny"):
+        raise HTTPException(status_code=400, detail="user_id and decision ('grant'|'deny') required")
+
+    # Verify caller is the bill host
+    bill_resp = supabase.table("bills").select("host_id").eq("id", bill_id).execute()
+    if not bill_resp.data:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    if bill_resp.data[0]["host_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Only the bill host can decide mercy requests")
+
+    if decision == "grant":
+        update_data = {"payment_status": "cleared"}
+    else:
+        update_data = {"payment_status": "unpaid", "mercy_type": "none", "mercy_payload": None}
+
+    supabase.table("participants").update(update_data).eq(
+        "bill_id", bill_id
+    ).eq("user_id", target_user_id).execute()
+
+    return {"success": True, "user_id": target_user_id, "decision": decision}
+
+
 @router.get("/bills/{bill_id}")
+@limiter.limit("30/minute")
 async def get_bill(request: Request, bill_id: str):
     """
     Fetch a bill with its items and the host's UPI VPA.
