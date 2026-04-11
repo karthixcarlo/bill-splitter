@@ -1,26 +1,41 @@
--- Migration 017: Security fix — drop overly permissive SELECT policies from migration 004
--- Migration 004 added USING(true) to bills, bill_items, participants, claims, users
--- which lets ANY authenticated user read ALL rows. This is a data leak.
---
--- The backend uses service_role key (bypasses RLS), so these only affect frontend (anon key).
--- Frontend needs: users (public profiles), claims (for bill participants), participants (own rows).
+-- Migration 017: Fix RLS — enable enforcement + replace permissive policies
 
 -- ============================================================================
--- 1. Drop the nuke policies from migration 004
+-- 1. Enable RLS on all tables (policies are useless without this)
+-- ============================================================================
+
+ALTER TABLE public.bills ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bill_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- 2. Drop overly permissive USING(true) policies from migration 004
 -- ============================================================================
 
 DROP POLICY IF EXISTS "Allow authenticated read bills" ON public.bills;
 DROP POLICY IF EXISTS "Allow authenticated read participants" ON public.participants;
 DROP POLICY IF EXISTS "Allow authenticated read bill_items" ON public.bill_items;
 DROP POLICY IF EXISTS "Allow authenticated read claims" ON public.claims;
--- Keep users readable — usernames/aura are public profile data (already had USING(true) in schema.sql)
--- DROP POLICY IF EXISTS "Allow authenticated read users" ON public.users;
 
 -- ============================================================================
--- 2. Add properly scoped SELECT policies
+-- 3. Drop new policies in case this migration was partially run before
 -- ============================================================================
 
--- Bills: user can read bills they host OR participate in
+DROP POLICY IF EXISTS "Authenticated users read own bills" ON public.bills;
+DROP POLICY IF EXISTS "Authenticated users read own bill items" ON public.bill_items;
+DROP POLICY IF EXISTS "Authenticated users read own bill participants" ON public.participants;
+DROP POLICY IF EXISTS "Authenticated users read own bill claims" ON public.claims;
+
+-- ============================================================================
+-- 4. Create properly scoped SELECT policies
+-- ============================================================================
+
+-- Bills: only host or participant can read
 CREATE POLICY "Authenticated users read own bills"
     ON public.bills FOR SELECT
     TO authenticated
@@ -31,7 +46,7 @@ CREATE POLICY "Authenticated users read own bills"
         )
     );
 
--- Bill items: user can read items from bills they're in
+-- Bill items: only from bills the user is part of
 CREATE POLICY "Authenticated users read own bill items"
     ON public.bill_items FOR SELECT
     TO authenticated
@@ -43,7 +58,7 @@ CREATE POLICY "Authenticated users read own bill items"
         )
     );
 
--- Participants: user can read participant rows from their own bills
+-- Participants: only rows from bills the user is part of
 CREATE POLICY "Authenticated users read own bill participants"
     ON public.participants FOR SELECT
     TO authenticated
@@ -57,7 +72,7 @@ CREATE POLICY "Authenticated users read own bill participants"
         )
     );
 
--- Claims: user can read claims from bills they participate in
+-- Claims: only from bills the user is part of
 CREATE POLICY "Authenticated users read own bill claims"
     ON public.claims FOR SELECT
     TO authenticated
@@ -74,17 +89,3 @@ CREATE POLICY "Authenticated users read own bill claims"
             WHERE b.host_id = auth.uid()
         )
     );
-
--- ============================================================================
--- 3. Fix notifications INSERT (only if table exists)
--- ============================================================================
-
--- Note: If notifications table exists (migration 009), run this separately:
--- DROP POLICY IF EXISTS "Authenticated users can insert notifications" ON public.notifications;
--- Then re-create with a tighter policy if needed.
-
--- ============================================================================
--- 4. Participants UPDATE is already scoped to auth.uid() = user_id.
---    Host audit/mercy operations now go through backend API (service_role,
---    bypasses RLS) so no RLS change needed here.
--- ============================================================================
