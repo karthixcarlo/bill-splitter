@@ -4,6 +4,12 @@ AI-powered bill splitting for friend groups in India. Snap a restaurant bill, le
 
 **Live:** [bill-splitter-4cmi.vercel.app](https://bill-splitter-4cmi.vercel.app)
 
+## Screenshots
+
+| Home | Analytics |
+|------|-----------|
+| ![Home](screenshots/home.png) | ![Analytics](screenshots/analytics.png) |
+
 ## Features
 
 ### Core
@@ -123,13 +129,13 @@ npm run dev
 
 ## Deployment
 
-- **Backend** → [Railway](https://railway.app) — auto-deploys from `main` via Dockerfile
+- **Backend** → [Render](https://render.com) — auto-deploys from `main` via Dockerfile (free tier)
 - **Frontend** → [Vercel](https://vercel.com) — auto-deploys from `main`, root directory set to `frontend`
 - **CI/CD** → GitHub Actions validates lint, build, and Docker on every push/PR
 
 ### Environment Variables
 
-**Railway (backend):**
+**Render (backend):**
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL`
 
 **Vercel (frontend):**

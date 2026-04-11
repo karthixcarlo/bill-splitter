@@ -76,31 +76,15 @@ CREATE POLICY "Authenticated users read own bill claims"
     );
 
 -- ============================================================================
--- 3. Fix notifications INSERT — restrict to service role or self-notifications
+-- 3. Fix notifications INSERT (only if table exists)
 -- ============================================================================
 
-DROP POLICY IF EXISTS "Authenticated users can insert notifications" ON public.notifications;
-
-CREATE POLICY "Users can insert notifications for bill participants"
-    ON public.notifications FOR INSERT
-    TO authenticated
-    WITH CHECK (
-        -- Users can only create notifications where they are the actor,
-        -- or the notification is for themselves
-        auth.uid() IS NOT NULL
-    );
--- Note: The backend uses service_role which bypasses RLS entirely.
--- Frontend notification inserts are limited in practice by the UI.
--- For maximum security, route all notification inserts through the backend API.
+-- Note: If notifications table exists (migration 009), run this separately:
+-- DROP POLICY IF EXISTS "Authenticated users can insert notifications" ON public.notifications;
+-- Then re-create with a tighter policy if needed.
 
 -- ============================================================================
--- 4. Tighten participants UPDATE — only allow users to update their OWN rows
---    (host operations go through backend service_role which bypasses RLS)
+-- 4. Participants UPDATE is already scoped to auth.uid() = user_id.
+--    Host audit/mercy operations now go through backend API (service_role,
+--    bypasses RLS) so no RLS change needed here.
 -- ============================================================================
-
--- Drop the broad update policy that lets any user update any participant row
--- The existing policy "Users can update own participant status" uses auth.uid() = user_id
--- which is correct. But we need to ensure payment_status can ONLY be set to
--- specific values by the participant themselves (not 'cleared' — that's host-only).
-
--- We'll handle this via the backend API (Patch 4) rather than complex RLS CHECK constraints.
