@@ -102,7 +102,7 @@ export default function BillRoom() {
     const usernameRef = useRef<string>('');            // latest username for callbacks
     const currentUserIdRef = useRef<string>('');       // latest userId for callbacks
 
-    useEffect(() => { loadBillData(); }, [billId]);
+    useEffect(() => { loadBillData(); }, [billId, currentUserId]);
 
     // Persist claims to localStorage
     useEffect(() => {
@@ -254,7 +254,8 @@ export default function BillRoom() {
     async function loadBillData() {
         try {
             const apiUrl = API_URL;
-            const res = await fetch(`${apiUrl}/api/bills/${billId}`);
+            const headers = currentUserId ? await authHeaders() : {};
+            const res = await fetch(`${apiUrl}/api/bills/${billId}`, { headers });
             if (res.ok) {
                 const data = await res.json();
                 setBill(data);
@@ -299,6 +300,12 @@ export default function BillRoom() {
 
                 restoreClaims();
                 setLoading(false);
+                return;
+            }
+
+            if (res.status === 403 && currentUserId) {
+                alert('You are not invited to this bill.');
+                router.push('/home');
                 return;
             }
 
@@ -486,13 +493,19 @@ export default function BillRoom() {
     // ─── Payment Audit (Trust Me Bro) ──────────────────────────────────────────
     async function handleMarkPaid() {
         if (!currentUserId || !billId) return;
-        const { error } = await supabase
-            .from('participants')
-            .update({ payment_status: 'pending_audit' })
-            .match({ bill_id: billId, user_id: currentUserId });
-        if (!error) {
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${API_URL}/api/bills/${billId}/mark-paid`, {
+                method: 'POST',
+                headers,
+            });
+            if (!res.ok) {
+                throw new Error('Failed to mark payment');
+            }
             setMyPaymentStatus('pending_audit');
             showBillToast('Payment marked as sent. Waiting for Host to verify.');
+        } catch {
+            showBillToast('Failed to mark payment as sent');
         }
     }
 
@@ -680,16 +693,21 @@ export default function BillRoom() {
             }
         }
 
-        // Update participant row
-        const { error } = await supabase
-            .from('participants')
-            .update({ payment_status: 'pending_mercy', mercy_type: mercyType, mercy_payload: payload })
-            .match({ bill_id: billId, user_id: currentUserId });
-
-        if (!error) {
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${API_URL}/api/bills/${billId}/mercy/request`, {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mercy_type: mercyType, mercy_payload: payload }),
+            });
+            if (!res.ok) {
+                throw new Error('Mercy request failed');
+            }
             setMyPaymentStatus('pending_mercy');
             setShowMercyModal(false);
             showBillToast('Mercy requested. Pray the Host accepts.');
+        } catch {
+            showBillToast('Failed to request mercy');
         }
         setMercySaving(false);
     }

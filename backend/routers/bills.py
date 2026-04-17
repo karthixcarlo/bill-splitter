@@ -6,7 +6,7 @@ import json
 import re
 import logging
 
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 from rate_limit import limiter
 
 logger = logging.getLogger("bpp.bills")
@@ -42,6 +42,13 @@ class ParsedBill(BaseModel):
     service_charge: float = Field(..., ge=0)
     total: float = Field(..., ge=0)
     restaurant_name: Optional[str] = None
+
+
+def _to_float(value, default=0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 @router.post("/parse-bill")
@@ -305,6 +312,35 @@ async def audit_payment(
     return {"success": True, "user_id": target_user_id, "payment_status": decision}
 
 
+@router.post("/bills/{bill_id}/mark-paid")
+@limiter.limit("10/minute")
+async def mark_payment_sent(
+    request: Request,
+    bill_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Participant-only: mark your own payment as pending host audit."""
+    supabase = request.app.state.supabase
+
+    bill_resp = supabase.table("bills").select("host_id").eq("id", bill_id).execute()
+    if not bill_resp.data:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    if bill_resp.data[0]["host_id"] == user["user_id"]:
+        raise HTTPException(status_code=400, detail="Bill host cannot mark themselves as paid")
+
+    participant_resp = supabase.table("participants").select("user_id,payment_status").eq(
+        "bill_id", bill_id
+    ).eq("user_id", user["user_id"]).execute()
+    if not participant_resp.data:
+        raise HTTPException(status_code=403, detail="You are not part of this bill")
+
+    supabase.table("participants").update(
+        {"payment_status": "pending_audit"}
+    ).eq("bill_id", bill_id).eq("user_id", user["user_id"]).execute()
+
+    return {"success": True, "payment_status": "pending_audit"}
+
+
 @router.post("/bills/{bill_id}/mercy")
 @limiter.limit("10/minute")
 async def mercy_decision(
@@ -343,16 +379,55 @@ async def mercy_decision(
     return {"success": True, "user_id": target_user_id, "decision": decision}
 
 
+@router.post("/bills/{bill_id}/mercy/request")
+@limiter.limit("10/minute")
+async def request_mercy(
+    request: Request,
+    bill_id: str,
+    payload: dict = Body(...),
+    user: dict = Depends(get_current_user),
+):
+    """Participant-only: request mercy for a small outstanding amount."""
+    supabase = request.app.state.supabase
+    mercy_type = payload.get("mercy_type")
+    mercy_payload = payload.get("mercy_payload")
+
+    if mercy_type not in ("text", "audio") or not mercy_payload:
+        raise HTTPException(status_code=400, detail="mercy_type and mercy_payload are required")
+
+    bill_resp = supabase.table("bills").select("host_id").eq("id", bill_id).execute()
+    if not bill_resp.data:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    if bill_resp.data[0]["host_id"] == user["user_id"]:
+        raise HTTPException(status_code=400, detail="Bill host cannot request mercy")
+
+    participant_resp = supabase.table("participants").select("user_id").eq(
+        "bill_id", bill_id
+    ).eq("user_id", user["user_id"]).execute()
+    if not participant_resp.data:
+        raise HTTPException(status_code=403, detail="You are not part of this bill")
+
+    supabase.table("participants").update(
+        {
+            "payment_status": "pending_mercy",
+            "mercy_type": mercy_type,
+            "mercy_payload": mercy_payload,
+        }
+    ).eq("bill_id", bill_id).eq("user_id", user["user_id"]).execute()
+
+    return {"success": True, "payment_status": "pending_mercy"}
+
+
 @router.get("/bills/{bill_id}")
 @limiter.limit("30/minute")
-async def get_bill(request: Request, bill_id: str):
+async def get_bill(request: Request, bill_id: str, user: Optional[dict] = Depends(get_optional_user)):
     """
     Fetch a bill with its items and the host's UPI VPA.
     Uses PostgREST embedded resource syntax to join users table.
     """
     supabase = request.app.state.supabase
     try:
-        # Join users so the frontend gets host upi_vpa without a second round-trip
+        # Join users so private responses can include host payment details.
         bill_resp = supabase.table("bills").select("*,users(id,username,upi_vpa)").eq("id", bill_id).execute()
         if not bill_resp.data:
             raise HTTPException(status_code=404, detail="Bill not found")
@@ -402,14 +477,45 @@ async def get_bill(request: Request, bill_id: str):
         payments_resp = supabase.table("payments").select("payer_id,amount_paid").eq("bill_id", bill_id).execute()
         payments_list = [{"payer_id": pay["payer_id"], "amount_paid": float(pay["amount_paid"])} for pay in (payments_resp.data or [])]
 
-        # Flatten host info to top-level so guest page reads bill.host_vpa directly
+        requester_id = user["user_id"] if user else None
+        is_private_view = False
+        if requester_id:
+            is_private_view = requester_id == bill["host_id"] or any(
+                participant["user_id"] == requester_id for participant in (participants_resp.data or [])
+            )
+
+        # Flatten host info to top-level so the private bill room can build UPI links.
         host_user = bill.get("users") or {}
         host_vpa = host_user.get("upi_vpa", "")
         host_name = host_user.get("username", "Host")
+        base_payload = {
+            "id": bill["id"],
+            "host_id": bill["host_id"],
+            "restaurant_name": bill.get("restaurant_name"),
+            "tax_amount": _to_float(bill.get("tax_amount")),
+            "service_charge": _to_float(bill.get("service_charge")),
+            "status": bill.get("status", "open"),
+            "created_at": bill.get("created_at"),
+            "ai_roast": bill.get("ai_roast"),
+            "min_aura_threshold": bill.get("min_aura_threshold", 0),
+            "participant_count": len(participants_list),
+            "items": items_resp.data or [],
+        }
+
+        if requester_id and not is_private_view:
+            raise HTTPException(status_code=403, detail="You are not allowed to access this bill")
+
+        if not is_private_view:
+            return {
+                **base_payload,
+                "claims": [],
+                "participants": [],
+                "payments": [],
+                "escape_requests": [],
+            }
 
         return {
-            **bill,
-            "items": items_resp.data or [],
+            **base_payload,
             "claims": claims_data,
             "host_vpa": host_vpa,
             "host_name": host_name,

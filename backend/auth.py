@@ -78,3 +78,11 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Token missing user ID")
 
     return {"user_id": user_id}
+
+
+async def get_optional_user(request: Request) -> dict | None:
+    """Return the authenticated user when a bearer token is present."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    return await get_current_user(request)

@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         const bill = await res.json();
 
         const itemCount = bill.items?.length ?? 0;
-        const participantCount = bill.participants?.length ?? 0;
+        const participantCount = bill.participant_count ?? bill.participants?.length ?? 0;
         const total = bill.items?.reduce((s: number, i: any) => s + (i.total_price || 0), 0) + (bill.tax_amount || 0) + (bill.service_charge || 0);
 
         const title = `${bill.restaurant_name || 'Bill'} — Bro Please Pay`;
